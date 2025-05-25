@@ -83,29 +83,29 @@ def chat_to_sql(nl_query):
 
     # Rule 4: Insert synonyms
     insert_syns = r'(add|insert|put)'
-    # Match phrases like "id to 1, name = deepak and order to cake into orders"
     m = re.match(fr'{insert_syns} (.+?) (into|in|inside) (\w+)', query)
     if m:
         fields_values_raw = m.group(2)
-        table = m.group(3)
+        table = m.group(4)
 
         # Normalize separators
         fields_values_raw = fields_values_raw.replace(' and ', ', ')
         
-        # Match field-value pairs like "id to 1", "name = deepak", "order equals to cake", etc.
-        pairs = re.findall(r'(\w+)\s*(=|to|is|equals|equals to)\s*\'?(\w+)\'?', fields_values_raw)
+        # Match field-value pairs: id = 1, name to Mayank, etc.
+        pairs = re.findall(r'(\w+)\s*(=|to|is|equals|equals to)\s*\'?([\w\s]+?)\'?(?=,|$)', fields_values_raw)
 
         fields = []
         values = []
 
         for field, _, value in pairs:
-            fields.append(field)
-            values.append(value)
+            fields.append(field.strip())
+            values.append(value.strip())
 
         fields_str = ','.join(fields)
         values_str = ','.join(f"'{v}'" if not v.isdigit() else v for v in values)
 
         return f"INSERT INTO {table}({fields_str}) VALUES ({values_str});"
+
 
 
     # Rule 5: Create synonyms

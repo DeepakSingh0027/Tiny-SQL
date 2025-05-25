@@ -87,9 +87,9 @@ def handle_update(ast):
     field_to_update = ast.value['field']
     if field_to_update not in columns:
         raise ValueError(f"Field '{field_to_update}' does not exist in table '{table_name}'.")
-    
+
     count = 0
-    where = ast.value['where']
+    where = ast.value.get('where')
     if where:
         key, op, val = where
         if key not in columns:
@@ -98,12 +98,21 @@ def handle_update(ast):
             raise ValueError(f"Unsupported operator in WHERE clause: {op}")
 
     for r in rows:
-        if not where or str(r.get(key)) == val:
+        # If no WHERE clause, update all rows
+        if not where:
             r[field_to_update] = ast.value['value']
             count += 1
+        else:
+            # Compare as string after stripping spaces, or convert to str for safety
+            row_value = str(r.get(key)).strip()
+            val_str = str(val).strip()
+            if row_value == val_str:
+                r[field_to_update] = ast.value['value']
+                count += 1
 
     save_table(table_name, columns, rows)
     print(f"{count} rows updated.")
+
 
 def handle_create(ast):
     table_name = ast.value['table']
