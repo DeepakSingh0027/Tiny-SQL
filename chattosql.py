@@ -41,22 +41,22 @@ def chat_to_sql(nl_query):
 
     # Rule 3: Select with condition: where ... is/equals/above/below/greater than/less than
     cond_patterns = [
-        r'where (\w+) (is|equals|equals to|contains|=) (\w+)',
-        r'where (\w+) (above|greater than|>) (\w+)',
-        r'where (\w+) (below|less than|<) (\w+)',
-        r'where (\w+) (>=) (\w+)',
-        r'where (\w+) (<=) (\w+)',
-        r'where (\w+) (<>|!=) (\w+)'
+        r'(where|whose)\s+(\w+)\s*(is|equals|equals to|contains|=)\s*["\']?(\w+)["\']?',
+        r'(where|whose)\s+(\w+)\s*(above|greater than|>)\s*["\']?(\w+)["\']?',
+        r'(where|whose)\s+(\w+)\s*(below|less than|<)\s*["\']?(\w+)["\']?',
+        r'(where|whose)\s+(\w+)\s*(>=)\s*["\']?(\w+)["\']?',
+        r'(where|whose)\s+(\w+)\s*(<=)\s*["\']?(\w+)["\']?',
+        r'(where|whose)\s+(\w+)\s*(<>|!=)\s*["\']?(\w+)["\']?'
     ]
     for pattern in cond_patterns:
         m = re.search(pattern, query)
         if m:
-            key, op_word, val = m.group(1), m.group(2), m.group(3)
+            _, key, op_word, val = m.group(1), m.group(2), m.group(3), m.group(4)
             op_map = {
                 'is': '=',
                 'equals': '=',
                 'equals to': '=',
-                'contains':'=',
+                'contains': '=',
                 '=': '=',
                 'above': '>',
                 'greater than': '>',
@@ -69,17 +69,18 @@ def chat_to_sql(nl_query):
                 '<>': '<>',
                 '!=': '<>'
             }
-            op = op_map[op_word]
-            # Remove condition phrase from query to parse base select
+            op = op_map.get(op_word.strip().lower(), '=')
+            val = val if val.isdigit() else f"'{val}'"
+
+            # Remove the condition part to extract the base query
             base_query = re.sub(pattern, '', query).strip()
-            # Extract table and fields from base_query
-            m2 = re.match(fr'{select_syns} ([\w ,and]+)?', base_query)
+            m2 = re.match(fr'{select_syns}\s+([\w ,and]+)?', base_query)
             if m2:
                 fields_raw = m2.group(1) or '*'
                 fields = clean_fields(fields_raw) if fields_raw != '*' else '*'
                 table = extract_table(base_query)
                 if table:
-                    return f"SELECT {fields} FROM {table} WHERE {key} {op} {val};"
+                    return f"SELECT {fields} FROM {table} WHERE {key.upper()} {op} {val};"
 
     # Rule 4: Insert synonyms
     insert_syns = r'(add|insert|put)'
@@ -135,14 +136,17 @@ def chat_to_sql(nl_query):
 
     # Rule 7: Delete synonyms
     delete_syns = r'(delete|remove)'
-    # Covers variations like "from orders", "orders", "where", "whose", and flexible condition operators
-    m = re.match(fr'{delete_syns} (from )?(\w+)( (where|whose) (\w+) (is|=|equals|equals to) ?\'?(\w+)\'?)?', query)
+    m = re.match(
+        fr'{delete_syns}\s+(from\s+)?(\w+)(\s+(where|whose)\s+(\w+)\s+(is|=|equals|equals to)\s+["\']?(\w+)["\']?)?',
+        query.strip(), re.IGNORECASE
+    )
+
     if m:
-        table = m.group(2)
+        table = m.group(3)
         where_clause = ''
         if m.group(5) and m.group(6) and m.group(7) and m.group(8):
             where_field = m.group(6)
-            operator_word = m.group(7)
+            operator_word = m.group(7).lower()
             value = m.group(8)
             op_map = {
                 'is': '=',
@@ -151,7 +155,12 @@ def chat_to_sql(nl_query):
                 'equals to': '='
             }
             operator = op_map.get(operator_word, '=')
-            where_clause = f" WHERE {where_field} {operator} '{value}'"
+            # Add quotes around value only if it's not purely numeric
+            if value.isdigit():
+                formatted_value = value
+            else:
+                formatted_value = f"'{value}'"
+            where_clause = f" WHERE {where_field} {operator} {formatted_value}"
         return f"DELETE FROM {table}{where_clause};"
 
 
