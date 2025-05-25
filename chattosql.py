@@ -41,7 +41,7 @@ def chat_to_sql(nl_query):
 
     # Rule 3: Select with condition: where ... is/equals/above/below/greater than/less than
     cond_patterns = [
-        r'where (\w+) (is|equals|=) (\w+)',
+        r'where (\w+) (is|equals|equals to|contains|=) (\w+)',
         r'where (\w+) (above|greater than|>) (\w+)',
         r'where (\w+) (below|less than|<) (\w+)',
         r'where (\w+) (>=) (\w+)',
@@ -55,6 +55,8 @@ def chat_to_sql(nl_query):
             op_map = {
                 'is': '=',
                 'equals': '=',
+                'equals to': '=',
+                'contains':'=',
                 '=': '=',
                 'above': '>',
                 'greater than': '>',
@@ -81,44 +83,76 @@ def chat_to_sql(nl_query):
 
     # Rule 4: Insert synonyms
     insert_syns = r'(add|insert|put)'
-    m = re.match(fr'{insert_syns} into (\w+) values? \((.+)\)', query)
+    # Match phrases like "id to 1, name = deepak and order to cake into orders"
+    m = re.match(fr'{insert_syns} (.+?) (into|in|inside) (\w+)', query)
     if m:
-        table = m.group(2)
-        values = m.group(3)
-        return f"INSERT INTO {table} VALUES ({values});"
+        fields_values_raw = m.group(2)
+        table = m.group(3)
+
+        # Normalize separators
+        fields_values_raw = fields_values_raw.replace(' and ', ', ')
+        
+        # Match field-value pairs like "id to 1", "name = deepak", "order equals to cake", etc.
+        pairs = re.findall(r'(\w+)\s*(=|to|is|equals|equals to)\s*\'?(\w+)\'?', fields_values_raw)
+
+        fields = []
+        values = []
+
+        for field, _, value in pairs:
+            fields.append(field)
+            values.append(value)
+
+        fields_str = ','.join(fields)
+        values_str = ','.join(f"'{v}'" if not v.isdigit() else v for v in values)
+
+        return f"INSERT INTO {table}({fields_str}) VALUES ({values_str});"
+
 
     # Rule 5: Create synonyms
     create_syns = r'(create|make)'
-    m = re.match(fr'{create_syns} table (\w+) (with|having) ([\w ,and]+)', query)
+    m = re.match(fr'{create_syns} table (\w+) (with attribute|with|having) ([\w ,and]+)', query)
     if m:
         table = m.group(2)
-        fields = clean_fields(m.group(4))
-        return f"CREATE TABLE {table} ({fields});"
+        raw_fields = clean_fields(m.group(4))
+        field_list = ', '.join([f"{field.strip()} VARCHAR" for field in raw_fields.split(',')])
+        return f"CREATE TABLE {table} ({field_list});"
+
 
     # Rule 6: Update synonyms
-    update_syns = r'(update|change|modify)'
-    m = re.match(fr'{update_syns} (\w+) set (\w+) = \'?(\w+)\'?( where (\w+) = \'?(\w+)\'?)?', query)
+    update_syns = r'(update|change|modify|replace)'
+    m = re.search(fr'{update_syns} (\w+)\s+(set|change|replace)?\s*(\w+)\s*(=|to|equals|equals to)\s*\'?(\w+)\'?.*?(where|whose)?\s*(\w+)?\s*(is|equals|=)?\s*\'?(\w+)\'?', query)
     if m:
         table = m.group(2)
-        field = m.group(3)
-        value = m.group(4)
+        field = m.group(4)
+        value = m.group(6)
         where_clause = ''
-        if m.group(5):
-            where_field = m.group(6)
-            where_value = m.group(7)
+        if m.group(7) and m.group(8) and m.group(10):
+            where_field = m.group(8)
+            where_value = m.group(10)
             where_clause = f" WHERE {where_field} = '{where_value}'"
         return f"UPDATE {table} SET {field} = '{value}'{where_clause};"
 
+
     # Rule 7: Delete synonyms
     delete_syns = r'(delete|remove)'
-    m = re.match(fr'{delete_syns} (from )?(\w+)( where (\w+) = \'?(\w+)\')?', query)
+    # Covers variations like "from orders", "orders", "where", "whose", and flexible condition operators
+    m = re.match(fr'{delete_syns} (from )?(\w+)( (where|whose) (\w+) (is|=|equals|equals to) ?\'?(\w+)\'?)?', query)
     if m:
         table = m.group(2)
         where_clause = ''
-        if m.group(4):
-            where_field = m.group(4)
-            where_value = m.group(5)
-            where_clause = f" WHERE {where_field} = '{where_value}'"
+        if m.group(5) and m.group(6) and m.group(7) and m.group(8):
+            where_field = m.group(6)
+            operator_word = m.group(7)
+            value = m.group(8)
+            op_map = {
+                'is': '=',
+                '=': '=',
+                'equals': '=',
+                'equals to': '='
+            }
+            operator = op_map.get(operator_word, '=')
+            where_clause = f" WHERE {where_field} {operator} '{value}'"
         return f"DELETE FROM {table}{where_clause};"
+
 
     return nl_query  # fallback, treat as raw SQL
