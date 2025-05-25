@@ -1,47 +1,136 @@
-from storage import load_table, save_table
+from storage import load_table, save_table, table_exists
 from utils import print_table
+
+def handle_select(ast):
+    table_name = ast.value['table']
+    if not table_exists(table_name):
+        raise ValueError(f"Table '{table_name}' does not exist.")
+    
+    columns, rows = load_table(table_name)
+    where = ast.value['where']
+    fields = ast.value['fields']
+
+    # Check WHERE field exists if WHERE is used
+    if where:
+        key, op, val = where
+        if key not in columns:
+            raise ValueError(f"Field '{key}' in WHERE clause does not exist in table '{table_name}'.")
+        if op != '=':
+            raise ValueError(f"Unsupported operator in WHERE clause: {op}")
+        rows = [r for r in rows if str(r.get(key)) == val]
+
+    # Check requested fields exist or handle '*'
+    if fields == '*':
+        print_table(rows)
+    else:
+        for f in fields:
+            if f not in columns:
+                raise ValueError(f"Field '{f}' does not exist in table '{table_name}'.")
+        filtered_rows = [{k: row.get(k, "<missing>") for k in fields} for row in rows]
+        print_table(filtered_rows)
+
+def handle_insert(ast):
+    table_name = ast.value['table']
+    if not table_exists(table_name):
+        raise ValueError(f"Table '{table_name}' does not exist.")
+    
+    columns, rows = load_table(table_name)
+    fields = ast.value['fields']
+    values = ast.value['values']
+
+    # Check fields is list and fields exist in columns
+    if not isinstance(fields, list):
+        raise ValueError("INSERT fields must be a list of field names.")
+    for f in fields:
+        if f not in columns:
+            raise ValueError(f"Field '{f}' does not exist in table '{table_name}'.")
+    
+    if len(values) != len(fields):
+        raise ValueError("Column count does not match value count.")
+    
+    # Optionally: fill missing columns with None or '<missing>'
+    # For now, only insert fields given
+    row = {col: "<missing>" for col in columns}  # default values
+    row.update(dict(zip(fields, values)))
+
+    rows.append(row)
+    save_table(table_name, columns, rows)
+    print("1 row inserted.")
+
+def handle_delete(ast):
+    table_name = ast.value['table']
+    if not table_exists(table_name):
+        raise ValueError(f"Table '{table_name}' does not exist.")
+    
+    columns, rows = load_table(table_name)
+    before = len(rows)
+    if ast.value['where']:
+        key, op, val = ast.value['where']
+        if key not in columns:
+            raise ValueError(f"Field '{key}' in WHERE clause does not exist in table '{table_name}'.")
+        if op != '=':
+            raise ValueError(f"Unsupported operator in WHERE clause: {op}")
+        rows = [r for r in rows if str(r.get(key)) != val]
+    else:
+        # Delete all rows if no WHERE
+        rows = []
+
+    save_table(table_name, columns, rows)
+    print(f"{before - len(rows)} rows deleted.")
+
+def handle_update(ast):
+    table_name = ast.value['table']
+    if not table_exists(table_name):
+        raise ValueError(f"Table '{table_name}' does not exist.")
+
+    columns, rows = load_table(table_name)
+    field_to_update = ast.value['field']
+    if field_to_update not in columns:
+        raise ValueError(f"Field '{field_to_update}' does not exist in table '{table_name}'.")
+    
+    count = 0
+    where = ast.value['where']
+    if where:
+        key, op, val = where
+        if key not in columns:
+            raise ValueError(f"Field '{key}' in WHERE clause does not exist in table '{table_name}'.")
+        if op != '=':
+            raise ValueError(f"Unsupported operator in WHERE clause: {op}")
+
+    for r in rows:
+        if not where or str(r.get(key)) == val:
+            r[field_to_update] = ast.value['value']
+            count += 1
+
+    save_table(table_name, columns, rows)
+    print(f"{count} rows updated.")
+
+def handle_create(ast):
+    table_name = ast.value['table']
+    if table_exists(table_name):
+        raise ValueError(f"Table '{table_name}' already exists.")
+    
+    # ast.value['fields'] is a list of (field_name, field_type)
+    fields = ast.value['fields']
+    if not all(isinstance(f, tuple) and len(f) == 2 for f in fields):
+        raise ValueError("CREATE fields must be a list of (field_name, field_type) tuples.")
+    
+    headers = [field_name for field_name, _ in fields]
+    save_table(table_name, headers, [])
+    print(f"Table '{table_name.upper()}' created with fields {headers}")
 
 def execute(ast):
     t = ast.type
+
     if t == 'SELECT':
-        columns, rows = load_table(ast.value['table'])
-        if ast.value['where']:
-            key, op, val = ast.value['where']
-            rows = [r for r in rows if str(r.get(key)) == val]
-        if ast.value['fields'] == '*':
-            print_table(rows)
-        else:
-            print_table([{k: row[k] for k in ast.value['fields']} for row in rows])
-
+        handle_select(ast)
     elif t == 'INSERT':
-        columns, rows = load_table(ast.value['table'])
-        if len(ast.value['values']) != len(columns):
-            raise Exception("Column count does not match value count.")
-        row = dict(zip(columns, ast.value['values']))
-        rows.append(row)
-        save_table(ast.value['table'], columns, rows)
-        print("1 row inserted.")
-
+        handle_insert(ast)
     elif t == 'DELETE':
-        columns, rows = load_table(ast.value['table'])
-        before = len(rows)
-        if ast.value['where']:
-            key, op, val = ast.value['where']
-            rows = [r for r in rows if str(r.get(key)) != val]
-        save_table(ast.value['table'], columns, rows)
-        print(f"{before - len(rows)} rows deleted.")
-
+        handle_delete(ast)
     elif t == 'UPDATE':
-        columns, rows = load_table(ast.value['table'])
-        count = 0
-        for r in rows:
-            if not ast.value['where'] or str(r.get(ast.value['where'][0])) == ast.value['where'][2]:
-                r[ast.value['field']] = ast.value['value']
-                count += 1
-        save_table(ast.value['table'], columns, rows)
-        print(f"{count} rows updated.")
-
+        handle_update(ast)
     elif t == 'CREATE':
-        headers = ast.value['fields']
-        save_table(ast.value['table'], headers, [])
-        print(f"Table '{ast.value['table'].upper()}' created with fields {headers}")
+        handle_create(ast)
+    else:
+        raise ValueError(f"Unsupported AST node type: {t}")

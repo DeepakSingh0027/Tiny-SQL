@@ -2,16 +2,16 @@ import re
 
 TOKEN_SPEC = [
     ('NUMBER',   r'\d+(\.\d*)?'),
-    ('STRING',   r'\'[^\']*\''),
-    ('COMMA',    r','),
+    ('STRING',   r'\'[^\']*\''),  # string literals in single quotes
+    ('COMMA',    r','),           # keep commas for parsing
     ('SEMICOLON',r';'),
     ('LPAREN',   r'\('),
     ('RPAREN',   r'\)'),
     ('OP',       r'=|<>|<|>|<=|>='),
     ('STAR',     r'\*'),
     ('IDENT',    r'[A-Za-z_][A-Za-z0-9_]*'),
-    ('SKIP',     r'[ \t]+'),
-    ('NEWLINE',  r'\n'),
+    ('SKIP',     r'[ \t]+'),      # skip spaces and tabs
+    ('NEWLINE',  r'\n'),          # skip newlines
 ]
 
 TOKEN_RE = re.compile('|'.join(f'(?P<{name}>{pattern})' for name, pattern in TOKEN_SPEC), re.IGNORECASE)
