@@ -111,7 +111,7 @@ def chat_to_sql(nl_query):
 
     # Rule 5: Create synonyms
     create_syns = r'(create|make)'
-    m = re.match(fr'{create_syns} table (\w+) (with attribute|with|having) ([\w ,and]+)', query)
+    m = re.match(fr'{create_syns} table (\w+) (with attributes|with|having) ([\w ,and]+)', query)
     if m:
         table = m.group(2)
         raw_fields = clean_fields(m.group(4))
