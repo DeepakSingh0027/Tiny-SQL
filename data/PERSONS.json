@@ -1,0 +1,16 @@
+{
+  "columns": [
+    "PERSONID",
+    "FIRSTNAME",
+    "LASTNAME",
+    "CITY"
+  ],
+  "rows": [
+    {
+      "PERSONID": "1",
+      "FIRSTNAME": "DEEPAK",
+      "LASTNAME": "DEOPA",
+      "CITY": "DEHRADUN"
+    }
+  ]
+}
