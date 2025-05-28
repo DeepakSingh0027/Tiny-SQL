@@ -1,0 +1,14 @@
+{
+  "columns": [
+    "ID",
+    "NAME",
+    "COURSE"
+  ],
+  "rows": [
+    {
+      "ID": "108",
+      "NAME": "ansh",
+      "COURSE": "cse"
+    }
+  ]
+}

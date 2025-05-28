@@ -22,7 +22,7 @@ def run_query():
     try:
         tokens = tokenize(query)
         ast = parse(tokens)
-        execute(ast)  # Should perform semantic checks (types, unknown fields, etc.)
+        execute(ast)
         output = mystdout.getvalue()
         success = True
     except Exception as e:
