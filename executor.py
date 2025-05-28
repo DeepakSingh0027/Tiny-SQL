@@ -17,7 +17,8 @@ def handle_select(ast):
             raise ValueError(f"Field '{key}' in WHERE clause does not exist in table '{table_name}'.")
         if op != '=':
             raise ValueError(f"Unsupported operator in WHERE clause: {op}")
-        rows = [r for r in rows if str(r.get(key)) == val]
+        key = key.upper()  # if your column names are uppercase
+        rows = [r for r in rows if str(r.get(key, '')).lower() == val.lower()]
 
     # Check requested fields exist or handle '*'
     if fields == '*':

@@ -16,7 +16,7 @@ def chat_to_sql(nl_query):
 
     # Helper: extract table name after keywords 'from', 'all', or 'in'
     def extract_table(q):
-        pattern = r'\b(from|all|in|of)\b\s+(\w+)'
+        pattern = r'\b(all from|from|all in|all of|all|in|of)\b\s+(\w+)'
         match = re.search(pattern, q, re.IGNORECASE)
         if match:
             return match.group(2)
@@ -53,6 +53,8 @@ def chat_to_sql(nl_query):
         if m:
             _, key, op_word, val = m.group(1), m.group(2), m.group(3), m.group(4)
             op_map = {
+                'Is': '=',
+                'IS': '=',
                 'is': '=',
                 'equals': '=',
                 'equals to': '=',
@@ -111,7 +113,7 @@ def chat_to_sql(nl_query):
 
     # Rule 5: Create synonyms
     create_syns = r'(create|make)'
-    m = re.match(fr'{create_syns} table (\w+) (with attributes|with|having) ([\w ,and]+)', query)
+    m = re.match(fr'{create_syns} table (\w+) (with attributes|with attributes|with|having) ([\w ,and]+)', query)
     if m:
         table = m.group(2)
         raw_fields = clean_fields(m.group(4))

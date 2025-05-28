@@ -1,0 +1,24 @@
+{
+  "columns": [
+    "ID",
+    "NAME"
+  ],
+  "rows": [
+    {
+      "ID": "2",
+      "NAME": "deepak"
+    },
+    {
+      "ID": "1",
+      "NAME": "deepak"
+    },
+    {
+      "ID": "1",
+      "NAME": "deepak"
+    },
+    {
+      "ID": "1",
+      "NAME": "deepak"
+    }
+  ]
+}
