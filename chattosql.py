@@ -95,7 +95,7 @@ def chat_to_sql(nl_query):
         fields_values_raw = fields_values_raw.replace(' and ', ', ')
         
         # Match field-value pairs: id = 1, name to Mayank, etc.
-        pairs = re.findall(r'(\w+)\s*(=|to|is|equals|equals to)\s*\'?([\w\s]+?)\'?(?=,|$)', fields_values_raw)
+        pairs = re.findall(r'(\w+)\s*(=|to|is|equals to|equals)\s*\'?([\w\s]+?)\'?(?=,|$)', fields_values_raw)
 
         fields = []
         values = []
